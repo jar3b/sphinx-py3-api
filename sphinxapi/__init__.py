@@ -191,7 +191,7 @@ class SphinxClient:
             return
         self._host = host
         if isinstance(port, int):
-            assert (port > 0 and port < 65536)
+            assert (0 < port < 65536)
             self._port = port
         self._path = None
 
@@ -348,7 +348,7 @@ class SphinxClient:
         """
         Set ranking mode.
         """
-        assert (ranker >= 0 and ranker < SPH_RANK_TOTAL)
+        assert (0 <= ranker < SPH_RANK_TOTAL)
         self._ranker = ranker
         self._rankexpr = rankexpr
 
@@ -583,8 +583,8 @@ class SphinxClient:
         req.append(self._sortby)
 
         if isinstance(query, str):
-            query = query.encode('utf-8')
-        assert (isinstance(query, str))
+            query = query.encode()
+        assert (isinstance(query, bytes))
 
         req.append(pack('>L', len(query)))
         req.append(query)
@@ -653,7 +653,7 @@ class SphinxClient:
 
         # comment
         comment = str(comment)
-        req.append(pack('>L', len(comment)) + comment)
+        req.append(pack('>L', len(comment)) + comment.encode())
 
         # attribute overrides
         req.append(pack('>L', len(self._overrides)))
@@ -676,7 +676,7 @@ class SphinxClient:
             req.append(pack('>L', self._predictedtime))
 
         # outer
-        req.append(pack('>L', len(self._outerorderby)) + self._outerorderby)
+        req.append(pack('>L', len(self._outerorderby)) + self._outerorderby.encode())
         req.append(pack('>2L', self._outeroffset, self._outerlimit))
         if self._hasouter:
             req.append(pack('>L', 1))
@@ -704,7 +704,7 @@ class SphinxClient:
 
         req = ''.join(self._reqs)
         length = len(req) + 8
-        req = pack('>HHLLL', SEARCHD_COMMAND_SEARCH, VER_COMMAND_SEARCH, length, 0, len(self._reqs)) + req
+        req = pack('>HHLLL', SEARCHD_COMMAND_SEARCH, VER_COMMAND_SEARCH, length, 0, len(self._reqs)) + req.encode()
         self._Send(sock, req)
 
         response = self._GetResponse(sock, VER_COMMAND_SEARCH)
@@ -818,7 +818,7 @@ class SphinxClient:
                     elif attrs[i][1] == SPH_ATTR_MULTI64:
                         match['attrs'][attrs[i][0]] = []
                         nvals = unpack('>L', response[p:p + 4])[0]
-                        nvals = nvals / 2
+                        nvals /= 2
                         p += 4
                         for n in range(0, nvals, 1):
                             match['attrs'][attrs[i][0]].append(unpack('>q', response[p:p + 8])[0])
@@ -901,11 +901,11 @@ class SphinxClient:
 
         # req index
         req.append(pack('>L', len(index)))
-        req.append(index)
+        req.append(index.encode())
 
         # req words
         req.append(pack('>L', len(words)))
-        req.append(words)
+        req.append(words.encode())
 
         # options
         req.append(pack('>L', len(opts['before_match'])))
@@ -935,7 +935,7 @@ class SphinxClient:
                 doc = doc.encode('utf-8')
             assert (isinstance(doc, str))
             req.append(pack('>L', len(doc)))
-            req.append(doc)
+            req.append(doc.encode())
 
         req = ''.join(req)
 
@@ -943,7 +943,7 @@ class SphinxClient:
         length = len(req)
 
         # add header
-        req = pack('>2HL', SEARCHD_COMMAND_EXCERPT, VER_COMMAND_EXCERPT, length) + req
+        req = pack('>2HL', SEARCHD_COMMAND_EXCERPT, VER_COMMAND_EXCERPT, length) + req.encode()
         self._Send(sock, req)
 
         response = self._GetResponse(sock, VER_COMMAND_EXCERPT)
@@ -1032,7 +1032,7 @@ class SphinxClient:
 
         req = ''.join(req)
         length = len(req)
-        req = pack('>2HL', SEARCHD_COMMAND_UPDATE, VER_COMMAND_UPDATE, length) + req
+        req = pack('>2HL', SEARCHD_COMMAND_UPDATE, VER_COMMAND_UPDATE, length) + req.encode()
         self._Send(sock, req)
 
         response = self._GetResponse(sock, VER_COMMAND_UPDATE)
@@ -1053,8 +1053,8 @@ class SphinxClient:
         assert (isinstance(hits, int))
 
         # build request
-        req = [pack('>L', len(query)) + query]
-        req.append(pack('>L', len(index)) + index)
+        req = [pack('>L', len(query)) + query.encode()]
+        req.append(pack('>L', len(index)) + index.encode())
         req.append(pack('>L', hits))
 
         # connect, send query, get response
@@ -1064,7 +1064,7 @@ class SphinxClient:
 
         req = ''.join(req)
         length = len(req)
-        req = pack('>2HL', SEARCHD_COMMAND_KEYWORDS, VER_COMMAND_KEYWORDS, length) + req
+        req = pack('>2HL', SEARCHD_COMMAND_KEYWORDS, VER_COMMAND_KEYWORDS, length) + req.encode()
         self._Send(sock, req)
 
         response = self._GetResponse(sock, VER_COMMAND_KEYWORDS)
@@ -1189,12 +1189,12 @@ class SphinxClient:
 
 def AssertInt32(value):
     assert (isinstance(value, int))
-    assert (value >= -2 ** 32 - 1 and value <= 2 ** 32 - 1)
+    assert (-2 ** 32 - 1 <= value <= 2 ** 32 - 1)
 
 
 def AssertUInt32(value):
     assert (isinstance(value, int))
-    assert (value >= 0 and value <= 2 ** 32 - 1)
+    assert (0 <= value <= 2 ** 32 - 1)
 
 
 def SetBit(flag, bit, on):
@@ -1202,7 +1202,7 @@ def SetBit(flag, bit, on):
         flag += (1 << bit)
     else:
         reset = 255 ^ (1 << bit)
-        flag = flag & reset
+        flag &= reset
 
     return flag
 
