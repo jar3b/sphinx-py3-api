@@ -937,13 +937,13 @@ class SphinxClient:
             req.append(pack('>L', len(doc)))
             req.append(doc.encode())
 
-        req = ''.join(req)
+        req = b''.join(req)
 
         # send query, get response
         length = len(req)
 
         # add header
-        req = pack('>2HL', SEARCHD_COMMAND_EXCERPT, VER_COMMAND_EXCERPT, length) + req.encode()
+        req = pack('>2HL', SEARCHD_COMMAND_EXCERPT, VER_COMMAND_EXCERPT, length) + req
         self._Send(sock, req)
 
         response = self._GetResponse(sock, VER_COMMAND_EXCERPT)
@@ -1062,9 +1062,9 @@ class SphinxClient:
         if not sock:
             return None
 
-        req = ''.join(req)
+        req = b''.join(req)
         length = len(req)
-        req = pack('>2HL', SEARCHD_COMMAND_KEYWORDS, VER_COMMAND_KEYWORDS, length) + req.encode()
+        req = pack('>2HL', SEARCHD_COMMAND_KEYWORDS, VER_COMMAND_KEYWORDS, length) + req
         self._Send(sock, req)
 
         response = self._GetResponse(sock, VER_COMMAND_KEYWORDS)
