@@ -238,7 +238,7 @@ class SphinxClient:
             return
 
         v = unpack('>L', sock.recv(4))
-        if v < 1:
+        if not v or v[0] < 1:
             sock.close()
             self._error = 'expected searchd protocol version, got %s' % v
             return
@@ -252,7 +252,7 @@ class SphinxClient:
         INTERNAL METHOD, DO NOT CALL. Gets and checks response packet from searchd server.
         """
         (status, ver, length) = unpack('>2HL', sock.recv(8))
-        response = ''
+        response = b''
         left = length
         while left > 0:
             chunk = sock.recv(left)
@@ -580,7 +580,7 @@ class SphinxClient:
             req.append(self._rankexpr)
         req.append(pack('>L', self._sort))
         req.append(pack('>L', len(self._sortby)))
-        req.append(self._sortby)
+        req.append(self._sortby.encode())
 
         if isinstance(query, str):
             query = query.encode()
@@ -594,7 +594,7 @@ class SphinxClient:
             req.append(pack('>L', w))
         assert (isinstance(index, str))
         req.append(pack('>L', len(index)))
-        req.append(index)
+        req.append(index.encode())
         req.append(pack('>L', 1))  # id64 range marker
         req.append(pack('>Q', self._min_id))
         req.append(pack('>Q', self._max_id))
@@ -620,12 +620,12 @@ class SphinxClient:
 
         # group-by, max-matches, group-sort
         req.append(pack('>2L', self._groupfunc, len(self._groupby)))
-        req.append(self._groupby)
+        req.append(self._groupby.encode())
         req.append(pack('>2L', self._maxmatches, len(self._groupsort)))
-        req.append(self._groupsort)
+        req.append(self._groupsort.encode())
         req.append(pack('>LLL', self._cutoff, self._retrycount, self._retrydelay))
         req.append(pack('>L', len(self._groupdistinct)))
-        req.append(self._groupdistinct)
+        req.append(self._groupdistinct.encode())
 
         # anchor point
         if len(self._anchor) == 0:
@@ -671,7 +671,7 @@ class SphinxClient:
 
         # select-list
         req.append(pack('>L', len(self._select)))
-        req.append(self._select)
+        req.append(self._select.encode())
         if self._predictedtime > 0:
             req.append(pack('>L', self._predictedtime))
 
@@ -684,7 +684,7 @@ class SphinxClient:
             req.append(pack('>L', 0))
 
         # send query, get response
-        req = ''.join(req)
+        req = b''.join(req)
 
         self._reqs.append(req)
         return
@@ -702,9 +702,9 @@ class SphinxClient:
         if not sock:
             return None
 
-        req = ''.join(self._reqs)
+        req = b''.join(self._reqs)
         length = len(req) + 8
-        req = pack('>HHLLL', SEARCHD_COMMAND_SEARCH, VER_COMMAND_SEARCH, length, 0, len(self._reqs)) + req.encode()
+        req = pack('>HHLLL', SEARCHD_COMMAND_SEARCH, VER_COMMAND_SEARCH, length, 0, len(self._reqs)) + req
         self._Send(sock, req)
 
         response = self._GetResponse(sock, VER_COMMAND_SEARCH)
@@ -749,7 +749,7 @@ class SphinxClient:
                 nfields -= 1
                 length = unpack('>L', response[p:p + 4])[0]
                 p += 4
-                fields.append(response[p:p + length])
+                fields.append(response[p:p + length].decode())
                 p += length
 
             result['fields'] = fields
@@ -760,7 +760,7 @@ class SphinxClient:
                 nattrs -= 1
                 length = unpack('>L', response[p:p + 4])[0]
                 p += 4
-                attr = response[p:p + length]
+                attr = response[p:p + length].decode()
                 p += length
                 type_ = unpack('>L', response[p:p + 4])[0]
                 p += 4
@@ -797,7 +797,7 @@ class SphinxClient:
                         p += 4
                         match['attrs'][attrs[i][0]] = ''
                         if slen > 0:
-                            match['attrs'][attrs[i][0]] = response[p:p + slen]
+                            match['attrs'][attrs[i][0]] = response[p:p + slen].decode()
                         p += slen - 4
                     elif attrs[i][1] == SPH_ATTR_FACTORS:
                         slen = unpack('>L', response[p:p + 4])[0]
@@ -1168,7 +1168,7 @@ class SphinxClient:
         self._socket = None
 
     def EscapeString(self, string):
-        return re.sub(r"([=\(\)|\-!@~\"&/\\\^\$\=\<])", r"\\\1", string)
+        return re.sub(r'([()|!@~"&/\\^$=<-])', r"\\\1", string)
 
     def FlushAttributes(self):
         sock = self._Connect()
