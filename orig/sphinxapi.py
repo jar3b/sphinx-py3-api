@@ -1,23 +1,31 @@
 #
-# $Id: sphinxapi.py 4885 2015-01-20 07:02:07Z deogar $
+# $Id$
 #
 # Python version of Sphinx searchd client (Python API)
 #
 # Copyright (c) 2006, Mike Osadnik
-# Copyright (c) 2006-2015, Andrew Aksyonoff
-# Copyright (c) 2008-2015, Sphinx Technologies Inc
+# Copyright (c) 2006-2016, Andrew Aksyonoff
+# Copyright (c) 2008-2016, Sphinx Technologies Inc
 # All rights reserved
 #
 # This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License. You should have
-# received a copy of the GPL license along with this program; if you
+# it under the terms of the GNU Library General Public License. You should
+# have received a copy of the LGPL license along with this program; if you
 # did not, you can find it at http://www.gnu.org/
 #
-
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#			WARNING
-# We strongly recommend you to use SphinxQL instead of the API
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# WARNING!!!
+#
+# As of 2015, we strongly recommend to use either SphinxQL or REST APIs
+# rather than the native SphinxAPI.
+#
+# While both the native SphinxAPI protocol and the existing APIs will
+# continue to exist, and perhaps should not even break (too much), exposing
+# all the new features via multiple different native API implementations
+# is too much of a support complication for us.
+#
+# That said, you're welcome to overtake the maintenance of any given
+# official API, and remove this warning ;)
+#
 
 import sys
 import select
@@ -35,7 +43,7 @@ SEARCHD_COMMAND_STATUS = 5
 SEARCHD_COMMAND_FLUSHATTRS = 7
 
 # current client-side command implementation versions
-VER_COMMAND_SEARCH = 0x11E
+VER_COMMAND_SEARCH = 0x120
 VER_COMMAND_EXCERPT = 0x104
 VER_COMMAND_UPDATE = 0x103
 VER_COMMAND_KEYWORDS = 0x100
@@ -82,6 +90,7 @@ SPH_FILTER_VALUES = 0
 SPH_FILTER_RANGE = 1
 SPH_FILTER_FLOATRANGE = 2
 SPH_FILTER_STRING = 3
+SPH_FILTER_STRING_LIST = 6
 
 # known attribute types
 SPH_ATTR_NONE = 0
@@ -157,6 +166,9 @@ class SphinxClient:
         self._outeroffset = 0  # outer offset
         self._outerlimit = 0  # outer limit
         self._hasouter = False  # sub-select enabled
+        self._tokenfilterlibrary = ''  # token_filter plugin library name
+        self._tokenfiltername = ''  # token_filter plugin name
+        self._tokenfilteropts = ''  # token_filter plugin options
 
         self._error = ''  # last error message
         self._warning = ''  # last warning message
@@ -414,8 +426,19 @@ class SphinxClient:
         assert (isinstance(attribute, str))
         assert (isinstance(value, str))
 
-        print("attr='%s' val='%s' " % (attribute, value))
-        self._filters.append({'type': SPH_FILTER_STRING, 'attr': attribute, 'exclude': exclude, 'value': value})
+        self._filters.append({'type': SPH_FILTER_STRING, 'attr': attribute, 'exclude': exclude, 'values': value})
+
+    def SetFilterStringList(self, attribute, value, exclude=0):
+        """
+        Set string list filter.
+        """
+        assert (isinstance(attribute, str))
+        assert (iter(value))
+
+        for v in value:
+            assert (isinstance(v, str))
+
+        self._filters.append({'type': SPH_FILTER_STRING_LIST, 'attr': attribute, 'exclude': exclude, 'values': value})
 
     def SetFilterRange(self, attribute, min_, max_, exclude=0):
         """
@@ -520,6 +543,15 @@ class SphinxClient:
         self._outerlimit = limit
         self._hasouter = True
 
+    def SetTokenFilter(self, library, name, opts=''):
+        assert (isinstance(library, str))
+        assert (isinstance(name, str))
+        assert (isinstance(opts, str))
+
+        self._tokenfilterlibrary = library
+        self._tokenfiltername = name
+        self._tokenfilteropts = opts
+
     def ResetOverrides(self):
         self._overrides = {}
 
@@ -615,6 +647,11 @@ class SphinxClient:
             elif filtertype == SPH_FILTER_STRING:
                 req.append(pack('>L', len(f['value'])))
                 req.append(f['value'])
+            elif filtertype == SPH_FILTER_STRING_LIST:
+                req.append(pack('>L', len(f['values'])))
+                for val in f['values']:
+                    req.append(pack('>L', len(val)))
+                    req.append(val)
             req.append(pack('>L', f['exclude']))
 
         # group-by, max-matches, group-sort
@@ -681,6 +718,11 @@ class SphinxClient:
             req.append(pack('>L', 1))
         else:
             req.append(pack('>L', 0))
+
+        # token_filter
+        req.append(pack('>L', len(self._tokenfilterlibrary)) + self._tokenfilterlibrary)
+        req.append(pack('>L', len(self._tokenfiltername)) + self._tokenfiltername)
+        req.append(pack('>L', len(self._tokenfilteropts)) + self._tokenfilteropts)
 
         # send query, get response
         req = ''.join(req)
@@ -1206,5 +1248,5 @@ def SetBit(flag, bit, on):
     return flag
 
 #
-# $Id: sphinxapi.py 4885 2015-01-20 07:02:07Z deogar $
+# $Id$
 #
